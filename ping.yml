@@ -1,0 +1,57 @@
+---
+- name: Teste de ping em múltiplos sistemas operacionais
+  hosts: all
+  gather_facts: yes
+
+  vars:
+    ping_count: 4
+    ping_target: "{{ inventory_hostname }}"
+
+  tasks:
+    - name: Executar ping em sistemas Unix/Linux
+      shell: "ping -c {{ ping_count }} {{ ping_target }}"
+      register: ping_result
+      ignore_errors: yes
+      when: ansible_os_family != "Windows"
+
+    - name: Executar ping em sistemas Windows
+      win_shell: "ping -n {{ ping_count }} {{ ping_target }}"
+      register: ping_result
+      ignore_errors: yes
+      when: ansible_os_family == "Windows"
+
+    - name: Analisar resultados do ping (Unix/Linux)
+      set_fact:
+        ping_success: "{{ ping_result.rc == 0 }}"
+        ping_stats: "{{ ping_result.stdout_lines[-1] | regex_search('(\\d+\\.\\d+)/(\\d+\\.\\d+)/(\\d+\\.\\d+)/(\\d+\\.\\d+)') }}"
+      when: ansible_os_family != "Windows"
+
+    - name: Analisar resultados do ping (Windows)
+      set_fact:
+        ping_success: "{{ 'Lost = 0' in ping_result.stdout }}"
+        ping_stats: "{{ ping_result.stdout | regex_findall('Average = (\\d+)ms') }}"
+      when: ansible_os_family == "Windows"
+
+    - name: Calcular tempo médio de resposta (Unix/Linux)
+      set_fact:
+        avg_response_time: "{{ ping_stats[1] | float }}"
+      when: ansible_os_family != "Windows" and ping_success
+
+    - name: Calcular tempo médio de resposta (Windows)
+      set_fact:
+        avg_response_time: "{{ ping_stats[0] | float }}"
+      when: ansible_os_family == "Windows" and ping_success
+
+    - name: Exibir resultado do ping
+      debug:
+        msg: >
+          Ping para {{ inventory_hostname }} ({{ ansible_distribution }} {{ ansible_distribution_version }}):
+          Status: {{ 'Sucesso' if ping_success else 'Falha' }}
+          {% if ping_success %}
+          Tempo médio de resposta: {{ avg_response_time }} ms
+          {% endif %}
+
+    - name: Exibir erro se o ping falhou
+      debug:
+        msg: "Erro ao pingar {{ inventory_hostname }}: {{ ping_result.stderr if ansible_os_family != 'Windows' else ping_result.stdout }}"
+      when: not ping_success
