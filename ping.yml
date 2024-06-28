@@ -21,7 +21,7 @@
     - name: Analisar resultados do ping (Unix/Linux)
       set_fact:
         ping_success: "{{ ping_result_unix.rc | default(1) == 0 }}"
-        ping_stats: "{{ ping_result_unix.stdout_lines[-1] | default('') | regex_search('(\\d+\\.\\d+)/(\\d+\\.\\d+)/(\\d+\\.\\d+)/(\\d+\\.\\d+)') }}"
+        ping_stats: "{{ ping_result_unix.stdout | default('') | regex_findall('min/avg/max/mdev = ([\\d.]+)/([\\d.]+)/([\\d.]+)/([\\d.]+)') }}"
       when: ansible_os_family != "Windows"
 
     - name: Analisar resultados do ping (Windows)
@@ -32,7 +32,7 @@
 
     - name: Calcular tempo médio de resposta (Unix/Linux)
       set_fact:
-        avg_response_time: "{{ ping_stats[1] | default(0) | float }}"
+        avg_response_time: "{{ ping_stats[0][1] | default(0) | float }}"
       when: ansible_os_family != "Windows" and ping_success
 
     - name: Calcular tempo médio de resposta (Windows)
