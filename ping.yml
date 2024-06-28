@@ -5,7 +5,7 @@
 
   vars:
     ping_count: 4
-    ping_target: "{{ inventory_hostname }}"
+    ping_target: "1.1.1.1"
 
   tasks:
     - name: Executar ping em sistemas Unix/Linux
