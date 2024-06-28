@@ -2,44 +2,42 @@
 - name: Teste de ping em múltiplos sistemas operacionais
   hosts: all
   gather_facts: yes
-
   vars:
     ping_count: 4
     ping_target: "1.1.1.1"
-
   tasks:
     - name: Executar ping em sistemas Unix/Linux
       shell: "ping -c {{ ping_count }} {{ ping_target }}"
-      register: ping_result
+      register: ping_result_unix
       ignore_errors: yes
       when: ansible_os_family != "Windows"
 
     - name: Executar ping em sistemas Windows
       win_shell: "ping -n {{ ping_count }} {{ ping_target }}"
-      register: ping_result
+      register: ping_result_windows
       ignore_errors: yes
       when: ansible_os_family == "Windows"
 
     - name: Analisar resultados do ping (Unix/Linux)
       set_fact:
-        ping_success: "{{ ping_result.rc == 0 }}"
-        ping_stats: "{{ ping_result.stdout_lines[-1] | regex_search('(\\d+\\.\\d+)/(\\d+\\.\\d+)/(\\d+\\.\\d+)/(\\d+\\.\\d+)') }}"
+        ping_success: "{{ ping_result_unix.rc | default(1) == 0 }}"
+        ping_stats: "{{ ping_result_unix.stdout_lines[-1] | default('') | regex_search('(\\d+\\.\\d+)/(\\d+\\.\\d+)/(\\d+\\.\\d+)/(\\d+\\.\\d+)') }}"
       when: ansible_os_family != "Windows"
 
     - name: Analisar resultados do ping (Windows)
       set_fact:
-        ping_success: "{{ 'Lost = 0' in ping_result.stdout }}"
-        ping_stats: "{{ ping_result.stdout | regex_findall('Average = (\\d+)ms') }}"
+        ping_success: "{{ 'Lost = 0' in ping_result_windows.stdout | default('') }}"
+        ping_stats: "{{ ping_result_windows.stdout | default('') | regex_findall('Average = (\\d+)ms') }}"
       when: ansible_os_family == "Windows"
 
     - name: Calcular tempo médio de resposta (Unix/Linux)
       set_fact:
-        avg_response_time: "{{ ping_stats[1] | float }}"
+        avg_response_time: "{{ ping_stats[1] | default(0) | float }}"
       when: ansible_os_family != "Windows" and ping_success
 
     - name: Calcular tempo médio de resposta (Windows)
       set_fact:
-        avg_response_time: "{{ ping_stats[0] | float }}"
+        avg_response_time: "{{ ping_stats[0] | default(0) | float }}"
       when: ansible_os_family == "Windows" and ping_success
 
     - name: Exibir resultado do ping
@@ -53,5 +51,5 @@
 
     - name: Exibir erro se o ping falhou
       debug:
-        msg: "Erro ao pingar {{ inventory_hostname }}: {{ ping_result.stderr if ansible_os_family != 'Windows' else ping_result.stdout }}"
+        msg: "Erro ao pingar {{ inventory_hostname }}: {{ ping_result_unix.stderr | default('') if ansible_os_family != 'Windows' else ping_result_windows.stdout | default('') }}"
       when: not ping_success
